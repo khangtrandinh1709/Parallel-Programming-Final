@@ -1,40 +1,46 @@
-#include "dataset.h"
-#include "forward.h"
 #include <iostream>
+#include <fstream>
+#include <cuda_runtime.h>
+#include "utils.h"
 
-#define BATCH_SIZE 32
+// Hyperparameters
 #define INPUT_SIZE 784
-#define NUM_TRAIN 60000
+#define HIDDEN_LAYER_1 128
+#define HIDDEN_LAYER_2 128
+#define OUTPUT_SIZE 10
+#define BATCH_SIZE 32
+#define LEARNING_RATE 0.01
+#define EPOCHS 1
+
+// Function declarations
+void runTreeReductionKernel(float *d_input, float *d_w1, float *d_b1, float *d_w2, float *d_b2, float *d_w3, float *d_b3, float *d_output);
+void runAtomicReductionKernel(float *d_input, float *d_w1, float *d_b1, float *d_w2, float *d_b2, float *d_w3, float *d_b3, float *d_output);
 
 int main() {
-    // Allocate host memory
-    float* h_input = (float*)malloc(BATCH_SIZE * INPUT_SIZE * sizeof(float));
-    int* h_labels = (int*)malloc(BATCH_SIZE * sizeof(int));
-
-    float *h_w1, *h_b1, *h_output;
-    cudaMallocManaged(&h_w1, HIDDEN_LAYER_1 * INPUT_SIZE * sizeof(float));
-    cudaMallocManaged(&h_b1, HIDDEN_LAYER_1 * sizeof(float));
-    cudaMallocManaged(&h_output, BATCH_SIZE * OUTPUT_SIZE * sizeof(float));
-
     // Load dataset
-    loadFashionMNIST("train-images-idx3-ubyte", "train-labels-idx1-ubyte",
-                     h_input, h_labels, BATCH_SIZE, INPUT_SIZE);
+    float *h_input, *h_labels;
+    loadFashionMNIST("dataset/", h_input, h_labels, BATCH_SIZE);
 
-    // Randomly initialize weights and biases
-    for (int i = 0; i < HIDDEN_LAYER_1 * INPUT_SIZE; i++) h_w1[i] = ((float)rand() / RAND_MAX) * 0.01;
-    for (int i = 0; i < HIDDEN_LAYER_1; i++) h_b1[i] = 0.0;
+    // Allocate memory for weights, biases, and outputs
+    float *h_w1, *h_b1, *h_w2, *h_b2, *h_w3, *h_b3, *h_output;
+    float *d_input, *d_labels, *d_w1, *d_b1, *d_w2, *d_b2, *d_w3, *d_b3, *d_output;
 
-    // Forward Pass
-    forwardPassGPU(h_input, h_w1, h_b1, nullptr, nullptr, nullptr, nullptr, h_output, BATCH_SIZE, INPUT_SIZE);
+    initializeWeightsAndBiases(h_w1, h_b1, h_w2, h_b2, h_w3, h_b3);
 
-    std::cout << "Forward Pass Completed!" << std::endl;
+    allocateDeviceMemory(d_input, d_labels, d_w1, d_b1, d_w2, d_b2, d_w3, d_b3, d_output);
+    cudaMemcpy(d_input, h_input, BATCH_SIZE * INPUT_SIZE * sizeof(float), cudaMemcpyHostToDevice);
 
-    // Cleanup
-    cudaFree(h_w1);
-    cudaFree(h_b1);
-    cudaFree(h_output);
-    free(h_input);
-    free(h_labels);
+    // Run kernels
+    std::cout << "Running Tree Reduction Kernel..." << std::endl;
+    runTreeReductionKernel(d_input, d_w1, d_b1, d_w2, d_b2, d_w3, d_b3, d_output);
 
+    std::cout << "Running Atomic Reduction Kernel..." << std::endl;
+    runAtomicReductionKernel(d_input, d_w1, d_b1, d_w2, d_b2, d_w3, d_b3, d_output);
+
+    // Free memory
+    freeHostMemory(h_input, h_labels, h_w1, h_b1, h_w2, h_b2, h_w3, h_b3);
+    freeDeviceMemory(d_input, d_labels, d_w1, d_b1, d_w2, d_b2, d_w3, d_b3, d_output);
+
+    std::cout << "Execution completed successfully!" << std::endl;
     return 0;
 }
