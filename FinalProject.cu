@@ -1,4 +1,6 @@
 #include <iostream>
+#include <fstream>
+#include <vector>
 #include <cmath>
 #include <cstdlib>
 #include <cuda_runtime.h>
@@ -72,7 +74,67 @@ __global__ void forward_pass(float *input, float *w1, float *b1, float *w2, floa
     softmax(&output[idx * OUTPUT_SIZE], OUTPUT_SIZE);
 }
 
+// Helper to read IDX files
+void read_idx_file(const std::string &filename, std::vector<unsigned char> &data, int &rows, int &cols) {
+    std::ifstream file(filename, std::ios::binary);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open " << filename << std::endl;
+        exit(1);
+    }
+
+    int magic_number = 0, num_items = 0;
+    file.read(reinterpret_cast<char*>(&magic_number), 4);
+    file.read(reinterpret_cast<char*>(&num_items), 4);
+    magic_number = __builtin_bswap32(magic_number);
+    num_items = __builtin_bswap32(num_items);
+
+    if (magic_number == 2051) { // Images
+        file.read(reinterpret_cast<char*>(&rows), 4);
+        file.read(reinterpret_cast<char*>(&cols), 4);
+        rows = __builtin_bswap32(rows);
+        cols = __builtin_bswap32(cols);
+        data.resize(num_items * rows * cols);
+    } else if (magic_number == 2049) { // Labels
+        rows = 1;
+        cols = 1;
+        data.resize(num_items);
+    } else {
+        std::cerr << "Invalid magic number in " << filename << std::endl;
+        exit(1);
+    }
+
+    file.read(reinterpret_cast<char*>(data.data()), data.size());
+    file.close();
+}
+
+void one_hot_encode_labels(const std::vector<unsigned char> &labels, std::vector<float> &one_hot_labels) {
+    int num_labels = labels.size();
+    one_hot_labels.resize(num_labels * OUTPUT_SIZE, 0);
+    for (int i = 0; i < num_labels; ++i) {
+        one_hot_labels[i * OUTPUT_SIZE + labels[i]] = 1.0f;
+    }
+}
+
 int main() {
+    // Load the dataset
+    std::vector<unsigned char> train_images, train_labels, test_images, test_labels;
+    int train_rows = 0, train_cols = 0, test_rows = 0, test_cols = 0;
+
+    read_idx_file("dataset/train-images-idx3-ubyte", train_images, train_rows, train_cols);
+    read_idx_file("dataset/train-labels-idx1-ubyte", train_labels, train_rows, train_cols);
+    read_idx_file("dataset/t10k-images-idx3-ubyte", test_images, test_rows, test_cols);
+    read_idx_file("dataset/t10k-labels-idx1-ubyte", test_labels, test_rows, test_cols);
+
+    // Normalize images and one-hot encode labels
+    std::vector<float> normalized_train_images(train_images.begin(), train_images.end());
+    std::vector<float> normalized_test_images(test_images.begin(), test_images.end());
+    for (auto &pixel : normalized_train_images) pixel /= 255.0f;
+    for (auto &pixel : normalized_test_images) pixel /= 255.0f;
+
+    std::vector<float> one_hot_train_labels, one_hot_test_labels;
+    one_hot_encode_labels(train_labels, one_hot_train_labels);
+    one_hot_encode_labels(test_labels, one_hot_test_labels);
+
     // Allocate memory for weights, biases, inputs, and outputs
     float *h_input, *h_w1, *h_b1, *h_w2, *h_b2, *h_w3, *h_b3, *h_output;
     float *d_input, *d_w1, *d_b1, *d_w2, *d_b2, *d_w3, *d_b3, *d_output;
@@ -106,7 +168,7 @@ int main() {
     for (int i = 0; i < OUTPUT_SIZE; ++i) h_b3[i] = 0.0;
 
     // Copy data to device
-    cudaMemcpy(d_input, h_input, BATCH_SIZE * INPUT_SIZE * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_input, normalized_train_images.data(), BATCH_SIZE * INPUT_SIZE * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_w1, h_w1, HIDDEN_LAYER_1 * INPUT_SIZE * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_b1, h_b1, HIDDEN_LAYER_1 * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_w2, h_w2, HIDDEN_LAYER_2 * HIDDEN_LAYER_1 * sizeof(float), cudaMemcpyHostToDevice);
