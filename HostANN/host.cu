@@ -4,23 +4,24 @@ HostANN::HostANN() {
     weight1 = (float*)malloc(sizeof(float)*(INPUT_SIZE*HIDDEN_LAYER_1));
     weight2 = (float*)malloc(sizeof(float)*(HIDDEN_LAYER_1*HIDDEN_LAYER_2));
     weight3 = (float*)malloc(sizeof(float)*(HIDDEN_LAYER_2*OUTPUT_SIZE));
-    biase1 = (float*)malloc(sizeof(float)*(INPUT_SIZE*HIDDEN_LAYER_1));
-    biase2 = (float*)malloc(sizeof(float)*(HIDDEN_LAYER_1*HIDDEN_LAYER_2));
-    biase3 = (float*)malloc(sizeof(float)*(HIDDEN_LAYER_2*OUTPUT_SIZE));
+    biase1 = (float*)malloc(sizeof(float)*(HIDDEN_LAYER_1));
+    biase2 = (float*)malloc(sizeof(float)*(HIDDEN_LAYER_2));
+    biase3 = (float*)malloc(sizeof(float)*(OUTPUT_SIZE));
     hidden1 = (float*)malloc(sizeof(float)*(HIDDEN_LAYER_1));
     hidden2 = (float*)malloc(sizeof(float)*(HIDDEN_LAYER_2));
     output = (float*)malloc(sizeof(float)*(OUTPUT_SIZE));
     input = (float*)malloc(sizeof(float)*(INPUT_SIZE));
+    std::cout<<"Here"<<std::endl;
 
     // Initialize biases to zero (common practice)
     for (int i = 0; i < HIDDEN_LAYER_1 * INPUT_SIZE; ++i) weight1[i] = ((float)rand() / RAND_MAX) * 0.01;
-    for (int i = 0; i < HIDDEN_LAYER_1; ++i) biase1[i] = 0.0;
+    for (int i = 0; i < HIDDEN_LAYER_1; i++) biase1[i] = 0.0;
 
-    for (int i = 0; i < HIDDEN_LAYER_1 * INPUT_SIZE; ++i) weight2[i] = ((float)rand() / RAND_MAX) * 0.01;
-    for (int i = 0; i < HIDDEN_LAYER_1; ++i) biase2[i] = 0.0;
+    for (int i = 0; i < HIDDEN_LAYER_1 * HIDDEN_LAYER_2; ++i) weight2[i] = ((float)rand() / RAND_MAX) * 0.01;
+    for (int i = 0; i < HIDDEN_LAYER_2; i++) biase2[i] = 0.0;
 
-    for (int i = 0; i < HIDDEN_LAYER_1 * INPUT_SIZE; ++i) weight3[i] = ((float)rand() / RAND_MAX) * 0.01;
-    for (int i = 0; i < HIDDEN_LAYER_1; ++i) biase3[i] = 0.0;
+    for (int i = 0; i < HIDDEN_LAYER_2*OUTPUT_SIZE; ++i) weight3[i] = ((float)rand() / RAND_MAX) * 0.01;
+    for (int i = 0; i < OUTPUT_SIZE; i++) biase3[i] = 0.0;
 }
 
 HostANN::~HostANN(){
@@ -30,6 +31,8 @@ HostANN::~HostANN(){
     free(biase1);
     free(biase2);
     free(biase3);
+    free(hidden1);
+    free(hidden2);
     free(output);
     free(input);
 }
@@ -117,6 +120,15 @@ void HostANN::backpropagation(float* target) {
             hidden1_delta[i] += hidden2_delta[j] * weight2[j * HIDDEN_LAYER_1 + i];
         }
         hidden1_delta[i] *= (hidden1[i] > 0.0f ? 1.0f : 0.0f); // ReLU derivative
+    }
+
+    const float gradient_clip_value = 5.0f;
+    for (int i = 0; i < OUTPUT_SIZE; ++i) {
+        if (output_delta[i] > gradient_clip_value) {
+            output_delta[i] = gradient_clip_value;
+        } else if (output_delta[i] < -gradient_clip_value) {
+            output_delta[i] = -gradient_clip_value;
+        }
     }
 
     // Step 4: Update weights and biases for weight3, weight2, weight1, biase3, biase2, biase1

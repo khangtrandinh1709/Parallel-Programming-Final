@@ -13,6 +13,8 @@ class HostANN
         HostANN();
         float* forward(float* input);
         void backpropagation(float* target);
+        // void backpropagation(float* target, float* weight1_grad, float* weight2_grad, float* weight3_grad,
+        //                     float* biase1_grad, float* biase2_grad, float* biase3_grad);
         void train(float* train_data, float* train_labels, int train_size);
         float relu(float x);
         void softmax(float *input, float *output, int size);
