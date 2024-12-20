@@ -139,18 +139,45 @@ __global__ void forwardPassTree(float *input, float *w1, float *b1, float *w2, f
     }
 }
 
-void runAtomicReductionKernel(float *d_input, float *d_w1, float *d_b1, float *d_w2, float *d_b2, float *d_w3, float *d_b3, float *d_output) {
+void runForwardKernelWithStreams(float *d_input, float *d_w1, float *d_b1, float *d_w2, float *d_b2, float *d_w3, float *d_b3, float *d_output, int num_streams,bool atomic=true) {
+    cudaStream_t* streams = (cudaStream_t *)malloc(num_streams * sizeof(cudaStream_t));
+    for (int i = 0; i < num_streams; i++) {
+        cudaStreamCreate(&streams[i]);
+    }
+
     dim3 block(128);
     dim3 grid((BATCH_SIZE + block.x - 1) / block.x);
 
-    forwardPassAtomic<<<grid, block>>>(d_input, d_w1, d_b1, d_w2, d_b2, d_w3, d_b3, d_output, BATCH_SIZE);
-    cudaDeviceSynchronize();
-}
+    // Calculate batch size per stream
+    int base_batch_size = BATCH_SIZE / num_streams;
+    int remainder = BATCH_SIZE % num_streams;
 
-void runTreeReductionKernel(float *d_input, float *d_w1, float *d_b1, float *d_w2, float *d_b2, float *d_w3, float *d_b3, float *d_output) {
-    dim3 block(128);
-    dim3 grid((BATCH_SIZE + block.x - 1) / block.x);
+    // Split the batch across the streams, handling the remainder
+    for (int i = 0; i < num_streams; i++) {
+        // Each stream gets at least `base_batch_size` elements
+        int batch_size_for_stream = base_batch_size;
 
-    forwardPassTree<<<grid, block>>>(d_input, d_w1, d_b1, d_w2, d_b2, d_w3, d_b3, d_output, BATCH_SIZE);
-    cudaDeviceSynchronize();
+        // Distribute the remainder elements to the first few streams
+        if (i < remainder)
+            batch_size_for_stream++;
+
+        int start_idx = i * base_batch_size + (i < remainder ? i : remainder);
+
+        // Ensure that the kernel launches with the correct batch size for each stream
+        if (atomic) {
+            forwardPassTree<<<grid, block, 0, streams[i]>>>(d_input + start_idx * INPUT_SIZE, d_w1, d_b1, d_w2, d_b2, d_w3, d_b3, d_output + start_idx * OUTPUT_SIZE, batch_size_for_stream);
+        } else {
+            forwardPassAtomic<<<grid, block, 0, streams[i]>>>(d_input + start_idx * INPUT_SIZE, d_w1, d_b1, d_w2, d_b2, d_w3, d_b3, d_output + start_idx * OUTPUT_SIZE, batch_size_for_stream);
+        }
+    }
+
+    // Synchronize all streams
+    for (int i = 0; i < num_streams; i++)
+        cudaStreamSynchronize(streams[i]);
+
+    // Destroy streams after use
+    for (int i = 0; i < num_streams; i++)
+        cudaStreamDestroy(streams[i]);
+
+    free(streams);
 }

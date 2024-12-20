@@ -6,8 +6,9 @@
 #include "constant.h"
 
 // Function declarations for kernels
-void runTreeReductionKernel(float *d_input, float *d_w1, float *d_b1, float *d_w2, float *d_b2, float *d_w3, float *d_b3, float *d_output);
-void runAtomicReductionKernel(float *d_input, float *d_w1, float *d_b1, float *d_w2, float *d_b2, float *d_w3, float *d_b3, float *d_output);
+// void runTreeReductionKernel(float *d_input, float *d_w1, float *d_b1, float *d_w2, float *d_b2, float *d_w3, float *d_b3, float *d_output);
+// void runAtomicReductionKernel(float *d_input, float *d_w1, float *d_b1, float *d_w2, float *d_b2, float *d_w3, float *d_b3, float *d_output);
+void runForwardKernelWithStreams(float *d_input, float *d_w1, float *d_b1, float *d_w2, float *d_b2, float *d_w3, float *d_b3, float *d_output, int num_streams,bool atomic=true);
 
 // Allocate host memory for inputs and labels
 void allocateHostMemory(int train_samples, int test_samples) {
@@ -18,7 +19,10 @@ void allocateHostMemory(int train_samples, int test_samples) {
     test_labels = (int *)malloc(test_samples * sizeof(int));
 }
 
-int main() {
+int main(int argc, char ** argv) {
+    int num_streams = 4;
+    if (argc >= 2)
+        num_streams = atoi(argv[1]);
     std::cout << "Starting the program..." << std::endl;
 
     // Step 1: Dataset parameters
@@ -52,16 +56,16 @@ int main() {
 
     // Step 6: Copy a training batch to device and run kernels
     std::cout << "Running kernels on training batch..." << std::endl;
-
+    std::cout<< "Using " << num_streams << " streams..." << std::endl;
     cudaMemcpy(d_input, train_input, TRAIN_BATCH_SIZE * INPUT_SIZE * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_labels, train_labels, TRAIN_BATCH_SIZE * sizeof(int), cudaMemcpyHostToDevice);
 
     cudaMemcpy(d_w1, h_w1, HIDDEN_LAYER_1 * INPUT_SIZE * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_b1, h_b1, HIDDEN_LAYER_1 * sizeof(float), cudaMemcpyHostToDevice);
 
-    runTreeReductionKernel(d_input, d_w1, d_b1, d_w2, d_b2, d_w3, d_b3, d_output);
-    runAtomicReductionKernel(d_input, d_w1, d_b1, d_w2, d_b2, d_w3, d_b3, d_output);
-
+    // runTreeReductionKernel(d_input, d_w1, d_b1, d_w2, d_b2, d_w3, d_b3, d_output);
+    // runAtomicReductionKernel(d_input, d_w1, d_b1, d_w2, d_b2, d_w3, d_b3, d_output);
+    runForwardKernelWithStreams(d_input, d_w1, d_b1, d_w2, d_b2, d_w3, d_b3, d_output, num_streams, true);
     // Copy output back to host
     cudaMemcpy(h_output, d_output, TRAIN_BATCH_SIZE * OUTPUT_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
 
