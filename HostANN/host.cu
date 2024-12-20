@@ -12,14 +12,23 @@ HostANN::HostANN() {
     output = (float*)malloc(sizeof(float)*(OUTPUT_SIZE));
     input = (float*)malloc(sizeof(float)*(INPUT_SIZE));
 
+    float stddev1 = sqrt(2.0 / INPUT_SIZE);
+    for (int i = 0; i < HIDDEN_LAYER_1 * INPUT_SIZE; ++i)
+        weight1[i] = (rand() / (float)RAND_MAX) * 2 * stddev1 - stddev1;
+
+    // He Initialization for the second weight matrix (HIDDEN_LAYER_1 -> HIDDEN_LAYER_2)
+    float stddev2 = sqrt(2.0 / HIDDEN_LAYER_1);
+    for (int i = 0; i < HIDDEN_LAYER_1 * HIDDEN_LAYER_2; ++i)
+        weight2[i] = (rand() / (float)RAND_MAX) * 2 * stddev2 - stddev2;
+
+    // He Initialization for the third weight matrix (HIDDEN_LAYER_2 -> OUTPUT_SIZE)
+    float stddev3 = sqrt(2.0 / HIDDEN_LAYER_2);
+    for (int i = 0; i < HIDDEN_LAYER_2 * OUTPUT_SIZE; ++i)
+        weight3[i] = (rand() / (float)RAND_MAX) * 2 * stddev3 - stddev3;
+
     // Initialize biases to zero (common practice)
-    for (int i = 0; i < HIDDEN_LAYER_1 * INPUT_SIZE; ++i) weight1[i] = ((float)rand() / RAND_MAX) * 0.01;
     for (int i = 0; i < HIDDEN_LAYER_1; i++) biase1[i] = 0.0;
-
-    for (int i = 0; i < HIDDEN_LAYER_1 * HIDDEN_LAYER_2; ++i) weight2[i] = ((float)rand() / RAND_MAX) * 0.01;
     for (int i = 0; i < HIDDEN_LAYER_2; i++) biase2[i] = 0.0;
-
-    for (int i = 0; i < HIDDEN_LAYER_2*OUTPUT_SIZE; ++i) weight3[i] = ((float)rand() / RAND_MAX) * 0.01;
     for (int i = 0; i < OUTPUT_SIZE; i++) biase3[i] = 0.0;
 }
 
