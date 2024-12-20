@@ -4,7 +4,6 @@
 #include <cuda_runtime.h>
 #include "utils.h"
 #include "constant.h"
-#include "relu.h"
 
 // Function declarations for kernels
 void runTreeReductionKernel(float *d_input, float *d_w1, float *d_b1, float *d_w2, float *d_b2, float *d_w3, float *d_b3, float *d_output);
