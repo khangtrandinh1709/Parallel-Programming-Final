@@ -9,7 +9,7 @@
 #define BATCH_SIZE 32         // Number of classes (0-9)
 #define TRAIN_BATCH_SIZE 2000     // Batch size for training
 #define TEST_BATCH_SIZE 2000      // Batch size for testing
-#define LEARNING_RATE 0.001      // Learning rate
+#define LEARNING_RATE 0.01      // Learning rate
 #define EPOCHS 8
 #define LAYERS 3
 
