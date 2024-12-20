@@ -11,7 +11,6 @@ HostANN::HostANN() {
     hidden2 = (float*)malloc(sizeof(float)*(HIDDEN_LAYER_2));
     output = (float*)malloc(sizeof(float)*(OUTPUT_SIZE));
     input = (float*)malloc(sizeof(float)*(INPUT_SIZE));
-    std::cout<<"Here"<<std::endl;
 
     // Initialize biases to zero (common practice)
     for (int i = 0; i < HIDDEN_LAYER_1 * INPUT_SIZE; ++i) weight1[i] = ((float)rand() / RAND_MAX) * 0.01;

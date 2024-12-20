@@ -10,7 +10,7 @@
 #define TRAIN_BATCH_SIZE 32     // Batch size for training
 #define TEST_BATCH_SIZE 32      // Batch size for testing
 #define LEARNING_RATE 0.001      // Learning rate
-#define EPOCHS 4 
+#define EPOCHS 5
 #define LAYERS 3
 
 #endif // CONSTANTS_H
