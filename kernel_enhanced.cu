@@ -1,9 +1,5 @@
-#include <cuda_runtime.h>
-#include <device_launch_parameters.h>
-#include <cmath>
-#include <iostream>
-#include "constant.h"
 #include "utils.h"
+#include "constant.h"
 
 // ReLU activation function
 __device__ float relu(float x) {
@@ -83,29 +79,30 @@ __global__ void computeLossKernel(float* output, int* labels, float* loss, int b
 
     int label = labels[idx];
     float predicted = output[idx * OUTPUT_SIZE + label];
-    atomicAdd(loss, -logf(predicted + 1e-7f));
+    atomicAdd(loss, -logf(predicted + 1e-7f)); // Add small constant to avoid log(0)
 }
 
 // Training kernel (Backward pass and weight update)
 __global__ void trainKernel(
     float* input, float* w1, float* b1, float* w2, float* b2, float* w3, float* b3,
-    float* hidden1, float* hidden2, float* output, float* labels, float learning_rate, int batch_size) {
+    float* hidden1, float* hidden2, float* output, float* labels, float learning_rate, int batch_size, float* loss) {
 
     int idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx >= batch_size) return;
 
-    // Gradient placeholders
+    // Compute gradients and backpropagate
     float grad_output[OUTPUT_SIZE] = {0};
-    float grad_hidden2[HIDDEN_LAYER_2] = {0};
-    float grad_hidden1[HIDDEN_LAYER_1] = {0};
-
-    // Compute output layer gradients (Softmax + Cross-entropy)
     for (int i = 0; i < OUTPUT_SIZE; ++i) {
         grad_output[i] = output[idx * OUTPUT_SIZE + i];
     }
-    grad_output[labels[idx]] -= 1.0f;
+    grad_output[static_cast<int>(labels[idx])] -= 1.0f;
+
+    // Compute cross-entropy loss
+    float log_prob = -logf(output[idx * OUTPUT_SIZE + static_cast<int>(labels[idx])] + 1e-7f);
+    atomicAdd(loss, log_prob);
 
     // Backpropagate to hidden layer 2
+    float grad_hidden2[HIDDEN_LAYER_2] = {0};
     for (int i = 0; i < HIDDEN_LAYER_2; ++i) {
         float sum = 0.0f;
         for (int j = 0; j < OUTPUT_SIZE; ++j) {
@@ -115,6 +112,7 @@ __global__ void trainKernel(
     }
 
     // Backpropagate to hidden layer 1
+    float grad_hidden1[HIDDEN_LAYER_1] = {0};
     for (int i = 0; i < HIDDEN_LAYER_1; ++i) {
         float sum = 0.0f;
         for (int j = 0; j < HIDDEN_LAYER_2; ++j) {
@@ -149,17 +147,20 @@ __global__ void trainKernel(
 // Host function to launch training
 void trainModel(
     float* d_input, float* d_w1, float* d_b1, float* d_w2, float* d_b2, float* d_w3, float* d_b3,
-    float* d_hidden1, float* d_hidden2, float* d_output, float* d_labels, float learning_rate, int batch_size) {
+    float* d_hidden1, float* d_hidden2, float* d_output, float* d_labels, float learning_rate, int batch_size, float* d_loss) {
 
     int threads_per_block = 256;
     int num_blocks = (batch_size + threads_per_block - 1) / threads_per_block;
 
     forwardPassKernel<<<num_blocks, threads_per_block>>>(d_input, d_w1, d_b1, d_w2, d_b2, d_w3, d_b3, d_hidden1, d_hidden2, d_output, batch_size);
-    trainKernel<<<num_blocks, threads_per_block>>>(d_input, d_w1, d_b1, d_w2, d_b2, d_w3, d_b3, d_hidden1, d_hidden2, d_output, d_labels, learning_rate, batch_size);
+    trainKernel<<<num_blocks, threads_per_block>>>(d_input, d_w1, d_b1, d_w2, d_b2, d_w3, d_b3, d_hidden1, d_hidden2, d_output, d_labels, learning_rate, batch_size, d_loss);
 }
 
 // Host function to evaluate the model
-float evaluateModel(float* d_input, float* d_w1, float* d_b1, float* d_w2, float* d_b2, float* d_w3, float* d_b3, float* d_hidden1, float* d_hidden2, float* d_output, float* d_labels, int batch_size) {
+float evaluateModel(
+    float* d_input, float* d_w1, float* d_b1, float* d_w2, float* d_b2, float* d_w3, float* d_b3,
+    float* d_hidden1, float* d_hidden2, float* d_output, float* d_labels, int batch_size) {
+
     int threads_per_block = 256;
     int num_blocks = (batch_size + threads_per_block - 1) / threads_per_block;
 
@@ -177,7 +178,7 @@ float evaluateModel(float* d_input, float* d_w1, float* d_b1, float* d_w2, float
                 predicted_label = j;
             }
         }
-        if (predicted_label == d_labels[i]) {
+        if (predicted_label == static_cast<int>(d_labels[i])) {
             correct_predictions++;
         }
     }

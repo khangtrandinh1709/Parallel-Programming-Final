@@ -106,12 +106,35 @@ void loadFashionMNIST(const std::string &dataset_path, const std::string &images
 }
 
 // Initialize weights and biases
-void initializeWeightsAndBiases(float *&w1, float *&b1, float *&w2, float *&b2, float *&w3, float *&b3) {
-    w1 = (float *)malloc(HIDDEN_LAYER_1 * INPUT_SIZE * sizeof(float));
-    b1 = (float *)malloc(HIDDEN_LAYER_1 * sizeof(float));
-    for (int i = 0; i < HIDDEN_LAYER_1 * INPUT_SIZE; ++i) w1[i] = ((float)rand() / RAND_MAX) * 0.01;
-    for (int i = 0; i < HIDDEN_LAYER_1; ++i) b1[i] = 0.0;
+//void initializeWeightsAndBiases(float *&w1, float *&b1, float *&w2, float *&b2, float *&w3, float *&b3) {
+//    w1 = (float *)malloc(HIDDEN_LAYER_1 * INPUT_SIZE * sizeof(float));
+//    b1 = (float *)malloc(HIDDEN_LAYER_1 * sizeof(float));
+//    for (int i = 0; i < HIDDEN_LAYER_1 * INPUT_SIZE; ++i) w1[i] = ((float)rand() / RAND_MAX) * 0.01;
+//    for (int i = 0; i < HIDDEN_LAYER_1; ++i) b1[i] = 0.0;
+//}
+
+void initializeWeightsAndBiases(float* w1, float* b1, float* w2, float* b2, float* w3, float* b3) {
+    srand(time(0));
+    for (int i = 0; i < HIDDEN_LAYER_1 * INPUT_SIZE; ++i) {
+        w1[i] = static_cast<float>(rand()) / RAND_MAX * sqrt(2.0f / INPUT_SIZE); // Xavier
+    }
+    for (int i = 0; i < HIDDEN_LAYER_1; ++i) {
+        b1[i] = 0.0f;
+    }
+    for (int i = 0; i < HIDDEN_LAYER_2 * HIDDEN_LAYER_1; ++i) {
+        w2[i] = static_cast<float>(rand()) / RAND_MAX * sqrt(2.0f / HIDDEN_LAYER_1); // Xavier
+    }
+    for (int i = 0; i < HIDDEN_LAYER_2; ++i) {
+        b2[i] = 0.0f;
+    }
+    for (int i = 0; i < OUTPUT_SIZE * HIDDEN_LAYER_2; ++i) {
+        w3[i] = static_cast<float>(rand()) / RAND_MAX * sqrt(2.0f / HIDDEN_LAYER_2); // Xavier
+    }
+    for (int i = 0; i < OUTPUT_SIZE; ++i) {
+        b3[i] = 0.0f;
+    }
 }
+
 
 // Free host memory
 void freeHostMemory() {
