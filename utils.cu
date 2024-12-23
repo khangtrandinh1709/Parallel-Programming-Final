@@ -1,5 +1,7 @@
 #include <iostream>
 #include <fstream>
+#include <stdexcept>
+#include <string>
 #include <vector>
 #include <cstring>
 #include <cstdlib>
@@ -23,112 +25,169 @@ int reverseInt(int i) {
     return ((int)c1 << 24) + ((int)c2 << 16) + ((int)c3 << 8) + c4;
 }
 
-// Function to load Fashion-MNIST dataset
-void loadFashionMNIST(const std::string &dataset_path, const std::string &images_file, const std::string &labels_file,
-                      float *&input, int *&labels, int &num_samples) {
+// Function to load MNIST images
+float* loadMNISTImages(const std::string& full_path, int& number_of_images, int& image_size) {
+    std::ifstream file(full_path, std::ios::binary);
 
-    // Paths to files
-    std::string images_path = dataset_path + images_file;
-    std::string labels_path = dataset_path + labels_file;
-
-    // Open images file
-    std::ifstream images_stream(images_path, std::ios::binary);
-    if (!images_stream.is_open()) {
-        std::cerr << "Error: Could not open images file: " << images_path << std::endl;
-        exit(1);
+    if (!file.is_open()) {
+        throw std::runtime_error("Cannot open file `" + full_path + "`!");
     }
 
-    // Open labels file
-    std::ifstream labels_stream(labels_path, std::ios::binary);
-    if (!labels_stream.is_open()) {
-        std::cerr << "Error: Could not open labels file: " << labels_path << std::endl;
-        exit(1);
-    }
+    int magic_number = 0, n_rows = 0, n_cols = 0;
 
-    // Read images file header
-    int magic_number, num_images, num_rows, num_cols;
-    images_stream.read((char *)&magic_number, 4);
-    images_stream.read((char *)&num_images, 4);
-    images_stream.read((char *)&num_rows, 4);
-    images_stream.read((char *)&num_cols, 4);
-
+    // Read and validate header
+    file.read(reinterpret_cast<char*>(&magic_number), sizeof(magic_number));
     magic_number = reverseInt(magic_number);
-    num_images = reverseInt(num_images);
-    num_rows = reverseInt(num_rows);
-    num_cols = reverseInt(num_cols);
-
-    // Read labels file header
-    int labels_magic_number, num_labels;
-    labels_stream.read((char *)&labels_magic_number, 4);
-    labels_stream.read((char *)&num_labels, 4);
-
-    labels_magic_number = reverseInt(labels_magic_number);
-    num_labels = reverseInt(num_labels);
-
-    if (num_images != num_labels) {
-        std::cerr << "Error: Number of images and labels do not match!" << std::endl;
-        exit(1);
+    if (magic_number != 2051) {
+        throw std::runtime_error("Invalid MNIST image file! Magic number: " + std::to_string(magic_number));
     }
 
-    // Allocate memory for input and labels
-    num_samples = num_images;
-    int image_size = num_rows * num_cols;
+    file.read(reinterpret_cast<char*>(&number_of_images), sizeof(number_of_images));
+    number_of_images = reverseInt(number_of_images);
 
-    input = (float *)malloc(num_samples * image_size * sizeof(float));
-    labels = (int *)malloc(num_samples * sizeof(int));
+    file.read(reinterpret_cast<char*>(&n_rows), sizeof(n_rows));
+    n_rows = reverseInt(n_rows);
 
-    if (!input || !labels) {
-        std::cerr << "Error: Memory allocation failed!" << std::endl;
-        exit(1);
+    file.read(reinterpret_cast<char*>(&n_cols), sizeof(n_cols));
+    n_cols = reverseInt(n_cols);
+
+    image_size = n_rows * n_cols;
+
+    // Debugging: Verify header values
+    std::cout << "Images File: Magic Number = " << magic_number
+              << ", Num Images = " << number_of_images
+              << ", Rows = " << n_rows
+              << ", Cols = " << n_cols << std::endl;
+
+    // Seek to the start of pixel data
+    file.seekg(16, std::ios::beg);
+    if (!file) {
+        throw std::runtime_error("Failed to seek to pixel data!");
     }
 
-    // Read images and normalize pixel values to [0, 1]
-    unsigned char pixel;
-    for (int i = 0; i < num_samples; i++) {
-        for (int j = 0; j < image_size; j++) {
-            images_stream.read((char *)&pixel, 1);
-            input[i * image_size + j] = pixel / 255.0f; // Normalize to [0, 1]
+    // Allocate memory for raw pixel data
+    unsigned char* raw_data = new unsigned char[number_of_images * image_size];
+    file.read(reinterpret_cast<char*>(raw_data), number_of_images * image_size);
+
+    // Check for read errors
+    if (!file) {
+        delete[] raw_data;
+        throw std::runtime_error("Error reading image data!");
+    }
+
+    // Debugging: Print the first 10 raw pixel values before normalization
+    std::cout << "First 10 raw pixel values of the first image (before normalization):" << std::endl;
+    for (int i = 0; i < 10; ++i) {
+        std::cout << static_cast<int>(raw_data[i]) << " ";
+    }
+    std::cout << std::endl;
+
+    // Allocate memory for normalized dataset
+    float* dataset = new float[number_of_images * image_size];
+    if (!dataset) {
+        delete[] raw_data;
+        throw std::runtime_error("Memory allocation failed for dataset!");
+    }
+
+    // Normalize the pixel values and validate
+    for (int i = 0; i < number_of_images * image_size; ++i) {
+        dataset[i] = static_cast<float>(raw_data[i]) / 255.0f;
+
+        // Validate range after normalization
+        if (dataset[i] < 0.0f || dataset[i] > 1.0f) {
+            std::cerr << "Error: Normalized value out of range at index " << i << " (value: " << dataset[i] << ")" << std::endl;
+            delete[] raw_data;
+            delete[] dataset;
+            throw std::runtime_error("Data overflow detected during normalization!");
         }
     }
 
-    // Read labels
-    unsigned char label;
-    for (int i = 0; i < num_samples; i++) {
-        labels_stream.read((char *)&label, 1);
-        labels[i] = (int)label;
+    // Debugging: Print the first 10 normalized pixel values
+    std::cout << "First 10 normalized pixel values of the first image:" << std::endl;
+    for (int i = 0; i < 10; ++i) {
+        std::cout << dataset[i] << " ";
+    }
+    std::cout << std::endl;
+
+    delete[] raw_data;
+    return dataset;
+}
+
+// Function to load MNIST labels
+int* loadMNISTLabels(const std::string& full_path, int& number_of_labels) {
+    std::ifstream file(full_path, std::ios::binary);
+
+    if (!file.is_open()) {
+        throw std::runtime_error("Cannot open file `" + full_path + "`!");
     }
 
-    // Close file streams
-    images_stream.close();
-    labels_stream.close();
+    int magic_number = 0;
 
-    std::cout << "Loaded " << num_samples << " samples from " << images_file << " and " << labels_file << std::endl;
+    // Read header
+    file.read(reinterpret_cast<char*>(&magic_number), sizeof(magic_number));
+    magic_number = reverseInt(magic_number);
+    if (magic_number != 2049) {
+        throw std::runtime_error("Invalid MNIST label file! Magic number: " + std::to_string(magic_number));
+    }
+
+    file.read(reinterpret_cast<char*>(&number_of_labels), sizeof(number_of_labels));
+    number_of_labels = reverseInt(number_of_labels);
+
+    // Debugging: Verify header values
+    std::cout << "Labels File: Magic Number = " << magic_number
+              << ", Num Labels = " << number_of_labels << std::endl;
+
+    // Allocate memory for labels
+    unsigned char* raw_labels = new unsigned char[number_of_labels];
+    file.read(reinterpret_cast<char*>(raw_labels), number_of_labels);
+
+    // Check for reading errors
+    if (!file) {
+        delete[] raw_labels;
+        throw std::runtime_error("Error reading label data from `" + full_path + "`!");
+    }
+
+    // Allocate memory for converted labels
+    int* labels = new int[number_of_labels];
+    for (int i = 0; i < number_of_labels; ++i) {
+        labels[i] = static_cast<int>(raw_labels[i]);
+    }
+
+    // Debugging: Print the first 10 labels
+    std::cout << "First 10 labels:" << std::endl;
+    for (int i = 0; i < 10; ++i) {
+        std::cout << labels[i] << " ";
+    }
+    std::cout << std::endl;
+
+    delete[] raw_labels;
+    return labels;
+}
+
+// Main function to load Fashion-MNIST
+void loadFashionMNIST(const std::string& dataset_path, const std::string& images_file, const std::string& labels_file,
+                      float*& input, int*& labels, int& num_samples) {
+    int image_size;
+    input = loadMNISTImages(dataset_path + images_file, num_samples, image_size);
+    labels = loadMNISTLabels(dataset_path + labels_file, num_samples);
 }
 
 // Initialize weights and biases
-//void initializeWeightsAndBiases(float *&w1, float *&b1, float *&w2, float *&b2, float *&w3, float *&b3) {
-//    w1 = (float *)malloc(HIDDEN_LAYER_1 * INPUT_SIZE * sizeof(float));
-//    b1 = (float *)malloc(HIDDEN_LAYER_1 * sizeof(float));
-//    for (int i = 0; i < HIDDEN_LAYER_1 * INPUT_SIZE; ++i) w1[i] = ((float)rand() / RAND_MAX) * 0.01;
-//    for (int i = 0; i < HIDDEN_LAYER_1; ++i) b1[i] = 0.0;
-//}
-
 void initializeWeightsAndBiases(float* w1, float* b1, float* w2, float* b2, float* w3, float* b3) {
-    srand(time(0));
     for (int i = 0; i < HIDDEN_LAYER_1 * INPUT_SIZE; ++i) {
-        w1[i] = static_cast<float>(rand()) / RAND_MAX * sqrt(2.0f / INPUT_SIZE); // Xavier
+        w1[i] = static_cast<float>(rand()) / RAND_MAX * 0.01f;
     }
     for (int i = 0; i < HIDDEN_LAYER_1; ++i) {
         b1[i] = 0.0f;
     }
     for (int i = 0; i < HIDDEN_LAYER_2 * HIDDEN_LAYER_1; ++i) {
-        w2[i] = static_cast<float>(rand()) / RAND_MAX * sqrt(2.0f / HIDDEN_LAYER_1); // Xavier
+        w2[i] = static_cast<float>(rand()) / RAND_MAX * 0.01f;
     }
     for (int i = 0; i < HIDDEN_LAYER_2; ++i) {
         b2[i] = 0.0f;
     }
     for (int i = 0; i < OUTPUT_SIZE * HIDDEN_LAYER_2; ++i) {
-        w3[i] = static_cast<float>(rand()) / RAND_MAX * sqrt(2.0f / HIDDEN_LAYER_2); // Xavier
+        w3[i] = static_cast<float>(rand()) / RAND_MAX * 0.01f;
     }
     for (int i = 0; i < OUTPUT_SIZE; ++i) {
         b3[i] = 0.0f;

@@ -101,6 +101,11 @@ __global__ void trainKernel(
     float log_prob = -logf(output[idx * OUTPUT_SIZE + static_cast<int>(labels[idx])] + 1e-7f);
     atomicAdd(loss, log_prob);
 
+    // Debug: Print loss for the first thread in each batch
+    if (idx == 0) {
+        printf("Sample loss: %f\n", log_prob);
+    }
+
     // Backpropagate to hidden layer 2
     float grad_hidden2[HIDDEN_LAYER_2] = {0};
     for (int i = 0; i < HIDDEN_LAYER_2; ++i) {
@@ -109,6 +114,11 @@ __global__ void trainKernel(
             sum += grad_output[j] * w3[j * HIDDEN_LAYER_2 + i];
         }
         grad_hidden2[i] = sum * relu_derivative(hidden2[idx * HIDDEN_LAYER_2 + i]);
+
+        // Debug: Print gradients for the first thread
+        if (idx == 0 && i < 5) {
+            printf("Grad Hidden2[%d]: %f\n", i, grad_hidden2[i]);
+        }
     }
 
     // Backpropagate to hidden layer 1
@@ -119,6 +129,11 @@ __global__ void trainKernel(
             sum += grad_hidden2[j] * w2[j * HIDDEN_LAYER_1 + i];
         }
         grad_hidden1[i] = sum * relu_derivative(hidden1[idx * HIDDEN_LAYER_1 + i]);
+
+        // Debug: Print gradients for the first thread
+        if (idx == 0 && i < 5) {
+            printf("Grad Hidden1[%d]: %f\n", i, grad_hidden1[i]);
+        }
     }
 
     // Update weights and biases

@@ -4,6 +4,8 @@
 #include <string>
 
 // Utility functions
+float* loadMNISTImages(const std::string& full_path, int& number_of_images, int& image_size);
+int* loadMNISTLabels(const std::string &labels_file, int &num_samples);
 void loadFashionMNIST(const std::string &dataset_path, const std::string &images_file, const std::string &labels_file,
                       float *&input, int *&labels, int &num_samples);
 void initializeWeightsAndBiases(float* w1, float* b1, float* w2, float* b2, float* w3, float* b3);

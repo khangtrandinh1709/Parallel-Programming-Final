@@ -5,17 +5,18 @@
 #include "constant.h"
 
 // Function declarations for kernels
-void trainModel(
-    float* d_input, float* d_w1, float* d_b1, float* d_w2, float* d_b2, float* d_w3, float* d_b3,
-    float* d_hidden1, float* d_hidden2, float* d_output, float* d_labels, float learning_rate, int batch_size, float* d_loss);
-float evaluateModel(
-    float* d_input, float* d_w1, float* d_b1, float* d_w2, float* d_b2, float* d_w3, float* d_b3,
-    float* d_hidden1, float* d_hidden2, float* d_output, float* d_labels, int batch_size);
+void trainModel(float* d_input, float* d_w1, float* d_b1, float* d_w2, float* d_b2, float* d_w3, float* d_b3,
+                float* d_hidden1, float* d_hidden2, float* d_output, float* d_labels, float learning_rate, int batch_size, float* d_loss);
+float evaluateModel(float* d_input, float* d_w1, float* d_b1, float* d_w2, float* d_b2, float* d_w3, float* d_b3,
+                    float* d_hidden1, float* d_hidden2, float* d_output, float* d_labels, int batch_size);
 
 // Normalize the input data
 void normalizeInput(float* input, int samples, int input_size) {
     for (int i = 0; i < samples * input_size; ++i) {
-        input[i] /= 255.0f; // Normalize pixel values to [0, 1]
+        if (i < 10) { // Debug first 10 values
+            std::cout << "Raw input before normalization [" << i << "]: " << input[i] << std::endl;
+        }
+        input[i] /= 255.0f; // Normalize to [0, 1]
     }
 }
 
@@ -45,14 +46,19 @@ int main() {
     std::cout << "Loading Fashion-MNIST testing dataset..." << std::endl;
     loadFashionMNIST("dataset/", "t10k-images-idx3-ubyte", "t10k-labels-idx1-ubyte", test_input, test_labels, test_samples);
 
-    // Step 4: Normalize input data
-    std::cout << "Normalizing the input data..." << std::endl;
-    normalizeInput(train_input, train_samples, INPUT_SIZE);
-    normalizeInput(test_input, test_samples, INPUT_SIZE);
 
     // Step 5: Allocate device memory
     float *d_input, *d_labels, *d_w1, *d_b1, *d_w2, *d_b2, *d_w3, *d_b3, *d_output, *d_loss;
-    allocateDeviceMemory(d_input, d_labels, d_w1, d_b1, d_w2, d_b2, d_w3, d_b3, d_output);
+    cudaMalloc(&d_input, BATCH_SIZE * INPUT_SIZE * sizeof(float));
+    cudaMalloc(&d_labels, BATCH_SIZE * sizeof(float));
+    cudaMalloc(&d_w1, HIDDEN_LAYER_1 * INPUT_SIZE * sizeof(float));
+    cudaMalloc(&d_b1, HIDDEN_LAYER_1 * sizeof(float));
+    cudaMalloc(&d_w2, HIDDEN_LAYER_2 * HIDDEN_LAYER_1 * sizeof(float));
+    cudaMalloc(&d_b2, HIDDEN_LAYER_2 * sizeof(float));
+    cudaMalloc(&d_w3, OUTPUT_SIZE * HIDDEN_LAYER_2 * sizeof(float));
+    cudaMalloc(&d_b3, OUTPUT_SIZE * sizeof(float));
+    cudaMalloc(&d_output, BATCH_SIZE * OUTPUT_SIZE * sizeof(float));
+    cudaMalloc(&d_loss, sizeof(float)); // Allocate memory for loss on device
 
     // Step 6: Initialize weights and biases
     float *w1 = new float[HIDDEN_LAYER_1 * INPUT_SIZE];
@@ -76,7 +82,7 @@ int main() {
         std::cout << "Epoch " << (epoch + 1) << "/" << EPOCHS << std::endl;
 
         float epoch_loss = 0.0f;
-        cudaMemset(d_loss, 0, sizeof(float));
+        cudaMemset(d_loss, 0, sizeof(float)); // Reset device loss accumulator
 
         int correct_predictions = 0;
 
@@ -88,13 +94,28 @@ int main() {
             // Train the model on the batch
             trainModel(d_input, d_w1, d_b1, d_w2, d_b2, d_w3, d_b3, nullptr, nullptr, d_output, d_labels, LEARNING_RATE, BATCH_SIZE, d_loss);
 
+            // Debug: Print first few output probabilities
+            if (batch == 0 && epoch == 0) {
+                float* h_output = new float[BATCH_SIZE * OUTPUT_SIZE];
+                cudaMemcpy(h_output, d_output, BATCH_SIZE * OUTPUT_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
+
+                std::cout << "Output probabilities for first batch:" << std::endl;
+                for (int i = 0; i < 5; ++i) { // Print 5 samples
+                    for (int j = 0; j < OUTPUT_SIZE; ++j) {
+                        std::cout << h_output[i * OUTPUT_SIZE + j] << " ";
+                    }
+                    std::cout << std::endl;
+                }
+                delete[] h_output;
+            }
+
             // Accumulate loss
             float batch_loss = 0.0f;
             cudaMemcpy(&batch_loss, d_loss, sizeof(float), cudaMemcpyDeviceToHost);
             epoch_loss += batch_loss;
 
             // Calculate batch accuracy
-            float *h_output = new float[BATCH_SIZE * OUTPUT_SIZE];
+            float* h_output = new float[BATCH_SIZE * OUTPUT_SIZE];
             cudaMemcpy(h_output, d_output, BATCH_SIZE * OUTPUT_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
 
             for (int i = 0; i < BATCH_SIZE; ++i) {
@@ -112,6 +133,17 @@ int main() {
             }
             delete[] h_output;
         }
+
+        // Debug: Print weight updates
+        float* h_w1 = new float[HIDDEN_LAYER_1 * INPUT_SIZE];
+        cudaMemcpy(h_w1, d_w1, HIDDEN_LAYER_1 * INPUT_SIZE * sizeof(float), cudaMemcpyHostToDevice);
+
+        std::cout << "First 10 weights after epoch " << (epoch + 1) << ": ";
+        for (int i = 0; i < 10; ++i) { // Print first 10 weights
+            std::cout << h_w1[i] << " ";
+        }
+        std::cout << std::endl;
+        delete[] h_w1;
 
         std::cout << "Epoch " << (epoch + 1) << " Training Accuracy: "
                   << (static_cast<float>(correct_predictions) / train_samples) * 100.0f << "%" << std::endl;
@@ -143,4 +175,3 @@ int main() {
     std::cout << "Execution completed successfully!" << std::endl;
     return 0;
 }
-
