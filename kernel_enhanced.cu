@@ -164,7 +164,7 @@ void runForwardKernelWithStreams(float *d_input, float *d_w1, float *d_b1, float
         int start_idx = i * base_batch_size + (i < remainder ? i : remainder);
 
         // Ensure that the kernel launches with the correct batch size for each stream
-        if (atomic) {
+        if (!atomic) {
             forwardPassTree<<<grid, block, 0, streams[i]>>>(d_input + start_idx * INPUT_SIZE, d_w1, d_b1, d_w2, d_b2, d_w3, d_b3, d_output + start_idx * OUTPUT_SIZE, batch_size_for_stream);
         } else {
             forwardPassAtomic<<<grid, block, 0, streams[i]>>>(d_input + start_idx * INPUT_SIZE, d_w1, d_b1, d_w2, d_b2, d_w3, d_b3, d_output + start_idx * OUTPUT_SIZE, batch_size_for_stream);

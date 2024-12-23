@@ -1,4 +1,5 @@
 #include "host.h"
+#include "utils.h"
 
 HostANN::HostANN() {
     weight1 = (float*)malloc(sizeof(float)*(INPUT_SIZE*HIDDEN_LAYER_1));
@@ -52,7 +53,6 @@ float HostANN::relu(float x) {
 void HostANN::softmax(float *input, float *output, int size) {
     float max_val = -FLT_MAX;
     float sum = 0.0;
-
     // Find max value for numerical stability
     for (int i = 0; i < size; i++) {
         max_val = max(max_val, input[i]);
@@ -96,7 +96,6 @@ float* HostANN::forward(float* input) {
             output[i] += weight3[i * HIDDEN_LAYER_2 + j] * hidden2[j];
         }
     }
-
     // Apply softmax to the output
     softmax(output, output, OUTPUT_SIZE);
 
@@ -236,4 +235,41 @@ float HostANN::evaluate(float* test_data, float* test_labels, int test_size) {
     float accuracy = (float)correct_predictions / test_size;
     std::cout << "Test Accuracy: " << accuracy * 100.0f << "%" << std::endl;
     return accuracy;
+}
+
+void HostANN::saveModel(const std::string& filename) {
+    std::ofstream outFile(filename, std::ios::binary); // Open in binary mode
+    if (!outFile) {
+        std::cerr << "Error opening file for saving: " << filename << std::endl;
+        return;
+    }
+
+    // Save all parameters as raw floats
+    outFile.write(reinterpret_cast<const char*>(weight1), sizeof(float) * INPUT_SIZE * HIDDEN_LAYER_1);
+    outFile.write(reinterpret_cast<const char*>(weight2), sizeof(float) * HIDDEN_LAYER_1 * HIDDEN_LAYER_2);
+    outFile.write(reinterpret_cast<const char*>(weight3), sizeof(float) * HIDDEN_LAYER_2 * OUTPUT_SIZE);
+    outFile.write(reinterpret_cast<const char*>(biase1), sizeof(float) * HIDDEN_LAYER_1);
+    outFile.write(reinterpret_cast<const char*>(biase2), sizeof(float) * HIDDEN_LAYER_2);
+    outFile.write(reinterpret_cast<const char*>(biase3), sizeof(float) * OUTPUT_SIZE);
+    outFile.close();
+    std::cout << "Model saved successfully to " << filename << std::endl;
+}
+
+// Function to load model parameters from a binary file
+void HostANN::loadModel(const std::string& filename) {
+    std::ifstream inFile(filename, std::ios::binary); // Open in binary mode
+    if (!inFile) {
+        std::cerr << "Error opening file for loading: " << filename << std::endl;
+        return;
+    }
+
+    // Load all parameters as raw floats
+    inFile.read(reinterpret_cast<char*>(weight1), sizeof(float) * INPUT_SIZE * HIDDEN_LAYER_1);
+    inFile.read(reinterpret_cast<char*>(weight2), sizeof(float) * HIDDEN_LAYER_1 * HIDDEN_LAYER_2);
+    inFile.read(reinterpret_cast<char*>(weight3), sizeof(float) * HIDDEN_LAYER_2 * OUTPUT_SIZE);
+    inFile.read(reinterpret_cast<char*>(biase1), sizeof(float) * HIDDEN_LAYER_1);
+    inFile.read(reinterpret_cast<char*>(biase2), sizeof(float) * HIDDEN_LAYER_2);
+    inFile.read(reinterpret_cast<char*>(biase3), sizeof(float) * OUTPUT_SIZE);
+    inFile.close();
+    std::cout << "Model loaded successfully from " << filename << std::endl;
 }

@@ -4,6 +4,7 @@
 #include <cfloat>
 #include <iostream>
 #include <vector>
+#include <limits>
 
 class HostANN
 {
@@ -19,5 +20,7 @@ class HostANN
         float relu(float x);
         void softmax(float *input, float *output, int size);
         float evaluate(float* test_data, float* test_labels, int test_size);
+        void saveModel(const std::string& filename);
+        void loadModel(const std::string& filename);
         ~HostANN();
 };
