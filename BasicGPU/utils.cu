@@ -102,6 +102,8 @@ __global__ void forward_kernel(float* input, float* weight1, float* weight2, flo
         hidden1[idx] = relu(hidden1[idx]);  // ReLU activation
     }
 
+    __syncthreads();
+
     // Hidden layer 1 to hidden layer 2
     if (idx < HIDDEN_LAYER_2) {
         hidden2[idx] = biase2[idx];
@@ -110,6 +112,8 @@ __global__ void forward_kernel(float* input, float* weight1, float* weight2, flo
         }
         hidden2[idx] = relu(hidden2[idx]);  // ReLU activation
     }
+
+    __syncthreads();
 
     // Hidden layer 2 to output
     if (idx < OUTPUT_SIZE) {
@@ -165,6 +169,8 @@ __global__ void backward_kernel(float* input, float* target, float* output, floa
         output_delta[idx] = output[idx] - target[idx]; // Softmax + Cross-entropy derivative
     }
 
+    __syncthreads();
+
     // Backpropagate to hidden layer 2
     if (idx < HIDDEN_LAYER_2) {
         hidden2_delta[idx] = 0.0f;
@@ -174,6 +180,8 @@ __global__ void backward_kernel(float* input, float* target, float* output, floa
         hidden2_delta[idx] *= (hidden2[idx] > 0.0f ? 1.0f : 0.0f); // ReLU derivative
     }
 
+    __syncthreads();
+
     // Backpropagate to hidden layer 1
     if (idx < HIDDEN_LAYER_1) {
         hidden1_delta[idx] = 0.0f;
@@ -182,6 +190,8 @@ __global__ void backward_kernel(float* input, float* target, float* output, floa
         }
         hidden1_delta[idx] *= (hidden1[idx] > 0.0f ? 1.0f : 0.0f); // ReLU derivative
     }
+
+    __syncthreads();
 
     // Update weights and biases for weight3, weight2, weight1, biase3, biase2, biase1
     if (idx < OUTPUT_SIZE) {
