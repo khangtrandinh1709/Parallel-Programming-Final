@@ -257,7 +257,7 @@ void HostANN::train(float* train_data, float* train_labels, int train_size) {
         }
 
         // Average loss over all training samples
-        epoch_loss /= train_size*TRAIN_BATCH_SIZE/OUTPUT_SIZE;
+        epoch_loss /= train_size;
         total_epoch_loss += epoch_loss;  // Accumulate total loss for tracking progress
         std::cout << "Epoch " << epoch + 1 << "/" << EPOCHS << " - Loss: " << epoch_loss << std::endl;
     }
