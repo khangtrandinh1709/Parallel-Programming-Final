@@ -5,7 +5,30 @@
 #include <iostream>
 #include <vector>
 #include <limits>
+#include <chrono>
 
+#pragma once
+class Timer
+{
+    std::chrono::high_resolution_clock::time_point start;
+    std::chrono::high_resolution_clock::time_point stop;
+
+public:
+    void Start()
+    {
+        start = std::chrono::high_resolution_clock::now();
+    }
+
+    void Stop()
+    {
+        stop = std::chrono::high_resolution_clock::now();
+    }
+
+    double Elapsed() const
+    {
+        return std::chrono::duration<double, std::milli>(stop - start).count();
+    }
+};
 class HostANN
 {
     protected:
