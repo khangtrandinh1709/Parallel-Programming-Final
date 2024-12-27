@@ -222,7 +222,7 @@ void HostANN::train(float* train_data, float* train_labels, int train_size) {
             // Forward pass (kernel call)
             int threads_per_block = 256;
             int num_blocks = (HIDDEN_LAYER_1 + threads_per_block - 1) / threads_per_block;
-            forward_kernel_tree<<<num_blocks, threads_per_block>>>(d_input, d_weight1, d_weight2, d_weight3, 
+            forward_kernel_atomic<<<num_blocks, threads_per_block>>>(d_input, d_weight1, d_weight2, d_weight3, 
                                                                d_biase1, d_biase2, d_biase3, 
                                                                d_hidden1, d_hidden2, d_output);
             cudaDeviceSynchronize();
@@ -259,7 +259,7 @@ void HostANN::train(float* train_data, float* train_labels, int train_size) {
         // Average loss over all training samples
         epoch_loss /= train_size*TRAIN_BATCH_SIZE/OUTPUT_SIZE;
         total_epoch_loss += epoch_loss;  // Accumulate total loss for tracking progress
-        std::cout << "Epoch " << epoch + 1 << "/" << EPOCHS << " - Loss: " << epoch_loss << std::endl;
+        std::cout << "Epoch " << epoch + 1 << "/" << EPOCHS << std::endl;
     }
 
     // Free device memory

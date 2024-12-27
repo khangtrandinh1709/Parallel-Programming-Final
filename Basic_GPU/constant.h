@@ -7,8 +7,8 @@
 #define HIDDEN_LAYER_2 128      // Second hidden layer size
 #define OUTPUT_SIZE 10 
 #define BATCH_SIZE 32         // Number of classes (0-9)
-#define TRAIN_BATCH_SIZE 2000     // Batch size for training
-#define TEST_BATCH_SIZE 2000      // Batch size for testing
+#define TRAIN_BATCH_SIZE 1     // Batch size for training
+#define TEST_BATCH_SIZE 1      // Batch size for testing
 #define LEARNING_RATE 0.01      // Learning rate
 #define EPOCHS 8
 #define LAYERS 3

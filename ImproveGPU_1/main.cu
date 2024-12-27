@@ -51,13 +51,18 @@ int main(int argc, char **argv) {
             test_labels[i * OUTPUT_SIZE + label] = 1.0f;
         }
         delete[] test_labels_raw;
+
+        Timer timer;
+        timer.Start();
         // Create and train the neural network
         HostANN host;
         // Load best model
-        host.loadModel("model.bin");
+        host.loadModel("ImproveGPU_1/model.bin");
         cout << "Start training"  << endl;
         host.train(train_data, train_labels, num_train_images);
         cout << "Done training" << endl;
+        timer.Stop();
+        cout << "Training time: " << timer.Elapsed() << " ms" << endl;
         // Evaluate the neural network
         host.evaluate(test_data, test_labels, num_test_images);
 
